@@ -331,7 +331,7 @@ void lcd_no_autoscroll(void)
 
 void lcd_set_cursor(uint8_t col, uint8_t row)
 {
-	int row_offsets[] = { 0x00, 0x40, 0x14, 0x54 };
+	int row_offsets[] = { 0x00, 0x14, 0x40, 0x54 };
 	if (row >= LCD_HEIGHT)
 		row = LCD_HEIGHT - 1;    // we count rows starting w/0
 	lcd_currline = row;  
@@ -841,8 +841,8 @@ const uint8_t lcd_chardata_thermometer[8] PROGMEM = {
 	B01010,
 	B01010,
 	B10001,
-	B10001,
-	B01110};
+	B01110,
+	B00000};
 
 const uint8_t lcd_chardata_uplevel[8] PROGMEM = {
 	B00100,
