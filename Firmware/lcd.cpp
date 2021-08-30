@@ -64,7 +64,7 @@
 #define LCD_RS_FLAG 0x01
 #define LCD_HALF_FLAG 0x02
 
-constexpr uint8_t row_offsets[] PROGMEM = { 0x00, 0x40, 0x14, 0x54 };
+constexpr uint8_t row_offsets[] PROGMEM = { 0x00, 0x14, 0x40, 0x54 };
 
 FILE _lcdout; // = {0}; Global variable is always zero initialized, no need to explicitly state that.
 
