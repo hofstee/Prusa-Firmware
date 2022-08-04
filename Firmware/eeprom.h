@@ -20,8 +20,8 @@ typedef struct
 {
     char name[MAX_SHEET_NAME_LENGTH]; //!< Can be null terminated, doesn't need to be null terminated
     int16_t z_offset; //!< Z_BABYSTEP_MIN .. Z_BABYSTEP_MAX = Z_BABYSTEP_MIN*2/1000 [mm] .. Z_BABYSTEP_MAX*2/1000 [mm]
-    uint8_t bed_temp; //!< 0 .. 254 [°C]
-    uint8_t pinda_temp; //!< 0 .. 254 [°C]
+    uint8_t bed_temp; //!< 0 .. 254 [°C] NOTE: currently only written-to and never used
+    uint8_t pinda_temp; //!< 0 .. 254 [°C] NOTE: currently only written-to and never used
 } Sheet;
 
 typedef struct
@@ -122,7 +122,7 @@ static_assert(sizeof(Sheets) == EEPROM_SHEETS_SIZEOF, "Sizeof(Sheets) is not EEP
 | 0x0FB0h 4016		| int16		| EEPROM_PROBE_TEMP_SHIFT				| ???			| ???					| ???												| ??? 			| D3 Ax0fb0 C10
 | 0x0FAFh 4015		| bool		| EEPROM_TEMP_CAL_ACTIVE				| 00h 0			| 00h 0					| PINDA Temp cal.: __inactive__						| LCD menu		| D3 Ax0faf C1
 | ^					| ^			| ^										| ffh 255		| ^						| PINDA Temp cal.: __active__						| ^ 			| ^
-| 0x0FA7h 4007		| uint32	| EEPROM_BOWDEN_LENGTH					| ???			| ff 00 00 00h			| Bowden length										| ??? 			| D3 Ax0fae C8
+| 0x0FA7h 4007		| ???		| _EEPROM_FREE_NR6_						| ???			| 						| _Free EEPROM space_								| ??? 			| D3 Ax0fae C8
 | ^					| ^			| ^										| ^				| 00 00 00 00h			| ^													| ^ 			| ^
 | 0x0FA6h 4006		| uint8		| EEPROM_CALIBRATION_STATUS_PINDA		| 00h 0			| ffh 255				| PINDA Temp: __not calibrated__					| ??? 			| D3 Ax0fa6 C1
 | ^					| ^			| ^										| 01h 1			| ^						| PINDA Temp: __calibrated__						| ^ 			| ^
@@ -327,7 +327,13 @@ static_assert(sizeof(Sheets) == EEPROM_SHEETS_SIZEOF, "Sizeof(Sheets) is not EEP
 | 0x0D05 3333		| uint32_t	| EEPROM_JOB_ID							| ???			| 00 00 00 00h			| Job ID used by host software						| D3 only		| D3 Ax0d05 C4
 | 0x0D04 3332		| uint8_t	| EEPROM_ECOOL_ENABLE					| ffh 255		| ^						| Disable extruder motor scaling for non-farm print	| LCD menu		| D3 Ax0d04 C1
 | ^					| ^			| ^										| 2ah 42		| ^						| Enable extruder motor scaling for non-farm print	| ^				| D3 Ax0d04 C1
-| 0x0D03 3321		| uint8_t	| EEPROM_FW_CRASH_FLAG					| 01h 1			| ff/00					| Last FW crash reason (dump_crash_reason)			| D21/D22		| D3 Ax0d03 C1
+| 0x0D03 3321		| uint8_t	| EEPROM_FW_CRASH_FLAG					| ffh 255   	| ffh 255				| Last FW crash reason (dump_crash_reason)			| D21/D22		| D3 Ax0d03 C1
+| ^					| ^			| ^										| 00h 0			| ^						| manual											| ^				| ^
+| ^					| ^			| ^										| 01h 1			| ^						| stack_error										| ^				| ^
+| ^					| ^			| ^										| 02h 2			| ^						| watchdog											| ^				| ^
+| ^					| ^			| ^										| 03h 3			| ^						| bad_isr											| ^				| ^
+| ^					| ^			| ^										| 04h 4			| ^						| bad_pullup_temp_isr								| ^				| ^
+| ^					| ^			| ^										| 05h 5			| ^						| bad_pullup_step_isr								| ^				| ^
 
 | Address begin		| Bit/Type 	| Name 									| Valid values	| Default/FactoryReset	| Description 										| Gcode/Function| Debug code
 | :--:				| :--: 		| :--: 									| :--:			| :--:					| :--:												| :--:			| :--:
@@ -379,8 +385,8 @@ static_assert(sizeof(Sheets) == EEPROM_SHEETS_SIZEOF, "Sizeof(Sheets) is not EEP
 #define EEPROM_PRINT_FLAG (EEPROM_TOSHIBA_FLASH_AIR_COMPATIBLITY-1)
 #define EEPROM_PROBE_TEMP_SHIFT (EEPROM_PRINT_FLAG - 2*5) //5 x int for storing pinda probe temp shift relative to 50 C; unit: motor steps 
 #define EEPROM_TEMP_CAL_ACTIVE (EEPROM_PROBE_TEMP_SHIFT - 1)
-#define EEPROM_BOWDEN_LENGTH (EEPROM_TEMP_CAL_ACTIVE - 2*4) //4 x int for bowden lengths for multimaterial
-#define EEPROM_CALIBRATION_STATUS_PINDA (EEPROM_BOWDEN_LENGTH - 1) //0 - not calibrated; 1 - calibrated
+#define _EEPROM_FREE_NR6_ (EEPROM_TEMP_CAL_ACTIVE - 2*4) //4 x int (used to be for bowden lengths for SNMM)
+#define EEPROM_CALIBRATION_STATUS_PINDA (_EEPROM_FREE_NR6_ - 1) //0 - not calibrated; 1 - calibrated
 #define EEPROM_UVLO						(EEPROM_CALIBRATION_STATUS_PINDA - 1) //1 - uvlo during print
 #define EEPROM_UVLO_CURRENT_POSITION	(EEPROM_UVLO-2*4) // 2 x float for current_position in X and Y axes
 #define EEPROM_FILENAME (EEPROM_UVLO_CURRENT_POSITION - 8) //8chars to store filename without extension

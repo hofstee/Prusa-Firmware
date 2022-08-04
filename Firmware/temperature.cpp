@@ -88,9 +88,6 @@ float current_temperature_bed = 0.0;
   float _Kp, _Ki, _Kd;
   int pid_cycle, pid_number_of_cycles;
   bool pid_tuning_finished = false;
-  #ifdef PID_ADD_EXTRUSION_RATE
-    float Kc=DEFAULT_Kc;
-  #endif
 #endif //PIDTEMP
   
 #ifdef FAN_SOFT_PWM
@@ -204,7 +201,7 @@ static float analog2tempAmbient(int raw);
 #endif
 static void updateTemperaturesFromRawValues();
 
-enum TempRunawayStates
+enum TempRunawayStates : uint8_t
 {
 	TempRunaway_INACTIVE = 0,
 	TempRunaway_PREHEAT = 1,
@@ -220,12 +217,12 @@ enum TempRunawayStates
 //===========================================================================
 
 #if (defined (TEMP_RUNAWAY_BED_HYSTERESIS) && TEMP_RUNAWAY_BED_TIMEOUT > 0) || (defined (TEMP_RUNAWAY_EXTRUDER_HYSTERESIS) && TEMP_RUNAWAY_EXTRUDER_TIMEOUT > 0)
-static float temp_runaway_status[4];
-static float temp_runaway_target[4];
-static float temp_runaway_timer[4];
-static int temp_runaway_error_counter[4];
+static uint8_t temp_runaway_status[1 + EXTRUDERS];
+static float temp_runaway_target[1 + EXTRUDERS];
+static uint32_t temp_runaway_timer[1 + EXTRUDERS];
+static uint16_t temp_runaway_error_counter[1 + EXTRUDERS];
 
-static void temp_runaway_check(int _heater_id, float _target_temperature, float _current_temperature, float _output, bool _isbed);
+static void temp_runaway_check(uint8_t _heater_id, float _target_temperature, float _current_temperature, float _output, bool _isbed);
 static void temp_runaway_stop(bool isPreheat, bool isBed);
 #endif
 
@@ -558,19 +555,18 @@ void countFanSpeed()
 
 void checkFanSpeed()
 {
-	uint8_t max_print_fan_errors = 0;
-	uint8_t max_extruder_fan_errors = 0;
+	uint8_t max_fan_errors[2];
 #ifdef FAN_SOFT_PWM
-	max_print_fan_errors = 3; //15 seconds
-	max_extruder_fan_errors = 2; //10seconds
+	max_fan_errors[1] = 3;  // 15 seconds (Print fan)
+	max_fan_errors[0] = 2;  // 10 seconds (Extruder fan)
 #else //FAN_SOFT_PWM
-	max_print_fan_errors = 15; //15 seconds
-	max_extruder_fan_errors = 5; //5 seconds
+	max_fan_errors[1] = 15; // 15 seconds (Print fan)
+	max_fan_errors[0] = 5;  // 5  seconds (Extruder fan)
 #endif //FAN_SOFT_PWM
-  
-  if(fans_check_enabled != false)
-	  fans_check_enabled = (eeprom_read_byte((uint8_t*)EEPROM_FAN_CHECK_ENABLED) > 0);
-	static unsigned char fan_speed_errors[2] = { 0,0 };
+
+	if(fans_check_enabled)
+		fans_check_enabled = (eeprom_read_byte((uint8_t*)EEPROM_FAN_CHECK_ENABLED) > 0);
+	static uint8_t fan_speed_errors[2] = { 0,0 };
 #if (defined(FANCHECK) && defined(TACH_0) && (TACH_0 >-1))
 	if ((fan_speed[0] < 20) && (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE)){ fan_speed_errors[0]++;}
 	else fan_speed_errors[0] = 0;
@@ -589,13 +585,16 @@ void checkFanSpeed()
 		fan_check_error = EFCE_OK; //if the issue is fixed while the printer is doing nothing, reenable processing immediately.
 		lcd_reset_alert_level(); //for another fan speed error
 	}
-	if ((fan_speed_errors[0] > max_extruder_fan_errors) && fans_check_enabled && (fan_check_error == EFCE_OK)) {
-		fan_speed_errors[0] = 0;
-		fanSpeedError(0); //extruder fan
-	}
-	if ((fan_speed_errors[1] > max_print_fan_errors) && fans_check_enabled && (fan_check_error == EFCE_OK)) {
-		fan_speed_errors[1] = 0;
-		fanSpeedError(1); //print fan
+	if (fans_check_enabled && (fan_check_error == EFCE_OK))
+	{
+		for (uint8_t fan = 0; fan < 2; fan++)
+		{
+			if (fan_speed_errors[fan] > max_fan_errors[fan])
+			{
+				fan_speed_errors[fan] = 0;
+				fanSpeedError(fan);
+			}
+		}
 	}
 }
 
@@ -614,8 +613,8 @@ static void fanSpeedErrorBeep(const char *serialMsg, const char *lcdMsg){
 void fanSpeedError(unsigned char _fan) {
 	if (get_message_level() != 0 && isPrintPaused) return;
 	//to ensure that target temp. is not set to zero in case that we are resuming print
-	if (card.sdprinting || is_usb_printing) {
-		if (heating_status != 0) {
+	if (card.sdprinting || usb_timer.running()) {
+		if (heating_status != HeatingStatus::NO_HEATING) {
 			lcd_print_stop();
 		}
 		else {
@@ -623,9 +622,9 @@ void fanSpeedError(unsigned char _fan) {
 		}
 	}
 	else {
-		// SERIAL_PROTOCOLLNRPGM(MSG_OCTOPRINT_PAUSED); //Why pause octoprint? is_usb_printing would be true in that case, so there is no need for this.
+		// SERIAL_PROTOCOLLNRPGM(MSG_OCTOPRINT_PAUSED); //Why pause octoprint? usb_timer.running() would be true in that case, so there is no need for this.
 		setTargetHotend0(0);
-        heating_status = 0;
+        heating_status = HeatingStatus::NO_HEATING;
         fan_check_error = EFCE_REPORTED;
 	}
 	switch (_fan) {
@@ -683,7 +682,7 @@ void manage_heater()
   temp_runaway_check(0, target_temperature_bed, current_temperature_bed, (int)soft_pwm_bed, true);
 #endif
 
-  for(int e = 0; e < EXTRUDERS; e++) 
+  for(uint8_t e = 0; e < EXTRUDERS; e++) 
   {
 
 #ifdef TEMP_RUNAWAY_EXTRUDER_HYSTERESIS
@@ -1221,7 +1220,7 @@ void tp_init()
 
 #ifdef AMBIENT_MINTEMP
   while(analog2tempAmbient(ambient_minttemp_raw) < AMBIENT_MINTEMP) {
-#if HEATER_AMBIENT_RAW_LO_TEMP < HEATER_AMBIENT_RAW_HI_TEMP
+#if AMBIENT_RAW_LO_TEMP < AMBIENT_RAW_HI_TEMP
     ambient_minttemp_raw += OVERSAMPLENR;
 #else
     ambient_minttemp_raw -= OVERSAMPLENR;
@@ -1230,7 +1229,7 @@ void tp_init()
 #endif //AMBIENT_MINTEMP
 #ifdef AMBIENT_MAXTEMP
   while(analog2tempAmbient(ambient_maxttemp_raw) > AMBIENT_MAXTEMP) {
-#if HEATER_AMBIENT_RAW_LO_TEMP < HEATER_AMBIENT_RAW_HI_TEMP
+#if AMBIENT_RAW_LO_TEMP < AMBIENT_RAW_HI_TEMP
     ambient_maxttemp_raw -= OVERSAMPLENR;
 #else
     ambient_maxttemp_raw += OVERSAMPLENR;
@@ -1240,15 +1239,15 @@ void tp_init()
 }
 
 #if (defined (TEMP_RUNAWAY_BED_HYSTERESIS) && TEMP_RUNAWAY_BED_TIMEOUT > 0) || (defined (TEMP_RUNAWAY_EXTRUDER_HYSTERESIS) && TEMP_RUNAWAY_EXTRUDER_TIMEOUT > 0)
-void temp_runaway_check(int _heater_id, float _target_temperature, float _current_temperature, float _output, bool _isbed)
+void temp_runaway_check(uint8_t _heater_id, float _target_temperature, float _current_temperature, float _output, bool _isbed)
 {
      float __delta;
 	float __hysteresis = 0;
-	int __timeout = 0;
+	uint16_t __timeout = 0;
 	bool temp_runaway_check_active = false;
 	static float __preheat_start[2] = { 0,0}; //currently just bed and one extruder
-	static int __preheat_counter[2] = { 0,0};
-	static int __preheat_errors[2] = { 0,0};
+	static uint8_t __preheat_counter[2] = { 0,0};
+	static uint8_t __preheat_errors[2] = { 0,0};
 		
 
 	if (_millis() - temp_runaway_timer[_heater_id] > 2000)
@@ -1381,33 +1380,15 @@ void temp_runaway_check(int _heater_id, float _target_temperature, float _curren
 
 void temp_runaway_stop(bool isPreheat, bool isBed)
 {
-	cancel_heatup = true;
-	quickStop();
-	if (card.sdprinting)
+    disable_heater();
+    Sound_MakeCustom(200,0,true);
+
+    if (isPreheat)
 	{
-		card.sdprinting = false;
-		card.closefile();
-	}
-	// Clean the input command queue 
-	// This is necessary, because in command queue there can be commands which would later set heater or bed temperature.
-	cmdqueue_reset();
-	
-	disable_heater();
-	disable_x();
-	disable_y();
-	disable_e0();
-	disable_e1();
-	disable_e2();
-	manage_heater();
-	lcd_update(0);
-  Sound_MakeCustom(200,0,true);
-	
-  if (isPreheat)
-	{
-		Stop();
-		isBed ? LCD_ALERTMESSAGEPGM("BED PREHEAT ERROR") : LCD_ALERTMESSAGEPGM("PREHEAT ERROR");
+		lcd_setalertstatuspgm(isBed? PSTR("BED PREHEAT ERROR") : PSTR("PREHEAT ERROR"), LCD_STATUS_CRITICAL);
 		SERIAL_ERROR_START;
-		isBed ? SERIAL_ERRORLNPGM(" THERMAL RUNAWAY ( PREHEAT HEATBED)") : SERIAL_ERRORLNPGM(" THERMAL RUNAWAY ( PREHEAT HOTEND)");
+		isBed ? SERIAL_ERRORLNPGM(" THERMAL RUNAWAY (PREHEAT HEATBED)") : SERIAL_ERRORLNPGM(" THERMAL RUNAWAY (PREHEAT HOTEND)");
+
 #ifdef EXTRUDER_ALTFAN_DETECT
 		altfanStatus.altfanOverride = 1; //full speed
 #endif //EXTRUDER_ALTFAN_DETECT
@@ -1418,16 +1399,16 @@ void temp_runaway_stop(bool isPreheat, bool isBed)
 #else //FAN_SOFT_PWM
 		analogWrite(FAN_PIN, 255);
 #endif //FAN_SOFT_PWM
-
 		fanSpeed = 255;
-		delayMicroseconds(2000);
 	}
 	else
 	{
-		isBed ? LCD_ALERTMESSAGEPGM("BED THERMAL RUNAWAY") : LCD_ALERTMESSAGEPGM("THERMAL RUNAWAY");
+		lcd_setalertstatuspgm(isBed? PSTR("BED THERMAL RUNAWAY") : PSTR("THERMAL RUNAWAY"), LCD_STATUS_CRITICAL);
 		SERIAL_ERROR_START;
 		isBed ? SERIAL_ERRORLNPGM(" HEATBED THERMAL RUNAWAY") : SERIAL_ERRORLNPGM(" HOTEND THERMAL RUNAWAY");
 	}
+
+    Stop();
 }
 #endif
 
@@ -1483,13 +1464,12 @@ uint8_t last_alert_sent_to_lcd = LCDALERT_NONE;
 
 //! update the current temperature error message
 //! @param type short error abbreviation (PROGMEM)
-//! @param func optional lcd update function (lcd_setalertstatus when first setting the error)
-void temp_update_messagepgm(const char* PROGMEM type, void (*func)(const char*) = lcd_updatestatus)
+void temp_update_messagepgm(const char* PROGMEM type)
 {
     char msg[LCD_WIDTH];
     strcpy_P(msg, PSTR("Err: "));
     strcat_P(msg, type);
-    (*func)(msg);
+    lcd_setalertstatus(msg, LCD_STATUS_CRITICAL);
 }
 
 //! signal a temperature error on both the lcd and serial
@@ -1497,7 +1477,7 @@ void temp_update_messagepgm(const char* PROGMEM type, void (*func)(const char*) 
 //! @param e optional extruder index for hotend errors
 void temp_error_messagepgm(const char* PROGMEM type, uint8_t e = EXTRUDERS)
 {
-    temp_update_messagepgm(type, lcd_setalertstatus);
+    temp_update_messagepgm(type);
 
     SERIAL_ERROR_START;
 
@@ -1702,6 +1682,16 @@ void adc_ready(void) //callback from adc when sampling finished
 
 FORCE_INLINE static void temperature_isr()
 {
+#ifdef DEBUG_PULLUP_CRASH
+    // check for faulty pull-ups enabled on thermistor inputs
+    if ((PORTF & (uint8_t)(ADC_DIDR_MSK & 0xff)) || (PORTK & (uint8_t)((ADC_DIDR_MSK >> 8) & 0xff)))
+        pullup_error(true);
+#else
+    PORTF &= ~(uint8_t)(ADC_DIDR_MSK & 0xff);
+    PORTK &= ~(uint8_t)((ADC_DIDR_MSK >> 8) & 0xff);
+#endif // DEBUG_PULLUP_CRASH
+
+
 	if (!temp_meas_ready) adc_cycle();
 	lcd_buttons_update();
 

@@ -1,6 +1,6 @@
-dist: trusty
+dist: focal
 before_install:
-  - sudo apt-get install -y ninja-build
+  - sudo apt-get install -y ninja-build python3-polib python3-pyelftools
   # Arduino IDE adds a lot of noise caused by network traffic, trying to firewall it off
   - sudo iptables -P INPUT DROP
   - sudo iptables -P FORWARD DROP
@@ -28,8 +28,3 @@ script:
   - cp Firmware/variants/1_75mm_MK25-RAMBo10a-E3Dv6full.h Firmware/Configuration_prusa.h
   - bash -x build.sh || { echo "1_75mm_MK25-RAMBo10a-E3Dv6full variant failed" && false; }
   - rm Firmware/Configuration_prusa.h
-  - cp Firmware/variants/1_75mm_MK2-RAMBo13a-E3Dv6full.h Firmware/Configuration_prusa.h
-  - bash -x build.sh || { echo "1_75mm_MK2-RAMBo13a-E3Dv6full variant failed" && false; }
-  - rm Firmware/Configuration_prusa.h
-  - cp Firmware/variants/1_75mm_MK2-RAMBo10a-E3Dv6full.h Firmware/Configuration_prusa.h
-  - bash -x build.sh || { echo "1_75mm_MK2-RAMBo10a-E3Dv6full variant failed" && false; }
