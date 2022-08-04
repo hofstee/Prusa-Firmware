@@ -79,9 +79,9 @@ extern FILE _uartout;
 #define SERIAL_PROTOCOL_F(x,y) (MYSERIAL.print(x,y))
 #define SERIAL_PROTOCOLPGM(x) (serialprintPGM(PSTR(x)))
 #define SERIAL_PROTOCOLRPGM(x) (serialprintPGM((x)))
-#define SERIAL_PROTOCOLLN(x) (MYSERIAL.println(x)/*,MYSERIAL.write('\n')*/)
-#define SERIAL_PROTOCOLLNPGM(x) (serialprintPGM(PSTR(x)),MYSERIAL.println()/*write('\n')*/)
-#define SERIAL_PROTOCOLLNRPGM(x) (serialprintPGM((x)),MYSERIAL.println()/*write('\n')*/)
+#define SERIAL_PROTOCOLLN(x) (MYSERIAL.println(x))
+#define SERIAL_PROTOCOLLNPGM(x) (serialprintlnPGM(PSTR(x)))
+#define SERIAL_PROTOCOLLNRPGM(x) (serialprintlnPGM((x)))
 
 
 extern const char errormagic[] PROGMEM;
@@ -114,6 +114,9 @@ void serial_echopair_P(const char *s_P, unsigned long v);
 // Making this FORCE_INLINE is not a good idea when running out of FLASH
 // I'd rather skip a few CPU ticks than 5.5KB (!!) of FLASH
 void serialprintPGM(const char *str);
+
+//The "ln" variant of the function above.
+void serialprintlnPGM(const char *str);
 
 bool is_buffer_empty();
 void process_commands();
@@ -236,9 +239,11 @@ void update_currents();
 void get_coordinates();
 void prepare_move();
 void kill(const char *full_screen_message = NULL, unsigned char id = 0);
-void Stop();
-bool IsStopped();
 void finishAndDisableSteppers();
+
+void UnconditionalStop(); // Stop heaters, motion and clear current print status
+void Stop();              // Emergency stop used by overtemp functions which allows recovery
+bool IsStopped();         // Returns true if the print has been stopped
 
 //put an ASCII command at the end of the current buffer, read from flash
 #define enquecommand_P(cmd) enquecommand(cmd, true)
@@ -275,6 +280,17 @@ FORCE_INLINE unsigned long millis_nc() {
 void setPwmFrequency(uint8_t pin, int val);
 #endif
 
+enum class HeatingStatus : uint8_t
+{
+    NO_HEATING = 0,
+    EXTRUDER_HEATING = 1,
+    EXTRUDER_HEATING_COMPLETE = 2,
+    BED_HEATING = 3,
+    BED_HEATING_COMPLETE = 4,
+};
+
+extern HeatingStatus heating_status;
+
 extern bool fans_check_enabled;
 extern float homing_feedrate[];
 extern uint8_t axis_relative_modes;
@@ -294,9 +310,9 @@ extern int8_t lcd_change_fil_state;
 extern float default_retraction;
 
 #ifdef TMC2130
-void homeaxis(int axis, uint8_t cnt = 1, uint8_t* pstep = 0);
+void homeaxis(uint8_t axis, uint8_t cnt = 1, uint8_t* pstep = 0);
 #else
-void homeaxis(int axis, uint8_t cnt = 1);
+void homeaxis(uint8_t axis, uint8_t cnt = 1);
 #endif //TMC2130
 
 
@@ -315,22 +331,14 @@ extern uint8_t host_keepalive_interval;
 
 extern unsigned long starttime;
 extern unsigned long stoptime;
-extern int bowden_length[4];
-extern bool is_usb_printing;
+extern ShortTimer usb_timer;
 extern bool homing_flag;
 extern bool loading_flag;
-extern unsigned int usb_printing_counter;
-
-extern unsigned long kicktime;
-
 extern unsigned long total_filament_used;
 void save_statistics(unsigned long _total_filament_used, unsigned long _total_print_time);
-extern unsigned int heating_status;
-extern unsigned int status_number;
-extern unsigned int heating_status_counter;
-extern char snmm_filaments_used;
+extern uint8_t status_number;
+extern uint8_t heating_status_counter;
 extern unsigned long PingTime;
-extern unsigned long NcTime;
 extern bool no_response;
 extern uint8_t important_status;
 extern uint8_t saved_filament_type;
@@ -348,7 +356,6 @@ extern unsigned long start_pause_print;
 extern unsigned long t_fan_rising_edge;
 
 extern bool mesh_bed_leveling_flag;
-extern bool mesh_bed_run_from_menu;
 
 // save/restore printing
 extern bool saved_printing;
@@ -376,7 +383,7 @@ extern uint16_t gcode_in_progress;
 extern LongTimer safetyTimer;
 
 #define PRINT_PERCENT_DONE_INIT 0xff
-#define PRINTER_ACTIVE (IS_SD_PRINTING || is_usb_printing || isPrintPaused || (custom_message_type == CustomMsg::TempCal) || saved_printing || (lcd_commands_type == LcdCommands::Layer1Cal) || mmu_print_saved || homing_flag || mesh_bed_leveling_flag)
+#define PRINTER_ACTIVE (IS_SD_PRINTING || usb_timer.running() || isPrintPaused || (custom_message_type == CustomMsg::TempCal) || saved_printing || (lcd_commands_type == LcdCommands::Layer1Cal) || mmu_print_saved || homing_flag || mesh_bed_leveling_flag)
 
 //! Beware - mcode_in_progress is set as soon as the command gets really processed,
 //! which is not the same as posting the M600 command into the command queue
@@ -385,7 +392,7 @@ extern LongTimer safetyTimer;
 //! Instead, the fsensor uses another state variable :( , which is set to true, when the M600 command is enqued
 //! and is reset to false when the fsensor returns into its filament runout finished handler
 //! I'd normally change this macro, but who knows what would happen in the MMU :)
-#define CHECK_FSENSOR ((IS_SD_PRINTING || is_usb_printing) && (mcode_in_progress != 600) && !saved_printing && e_active())
+#define CHECK_FSENSOR ((IS_SD_PRINTING || usb_timer.running()) && (mcode_in_progress != 600) && !saved_printing && e_active())
 
 extern void calculate_extruder_multipliers();
 
@@ -497,6 +504,7 @@ void raise_z_above(float target, bool plan=true);
 
 extern "C" void softReset();
 void stack_error();
+void pullup_error(bool fromTempISR);
 
 extern uint32_t IP_address;
 

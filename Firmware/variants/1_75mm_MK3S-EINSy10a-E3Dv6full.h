@@ -12,7 +12,7 @@
 #define PRINTER_NAME PRINTER_MK3S_NAME
 #define PRINTER_MMU_TYPE PRINTER_MK3S_MMU2
 #define PRINTER_MMU_NAME PRINTER_MK3S_MMU2_NAME
-#define FILAMENT_SIZE "1_75mm_MK3"
+#define FILAMENT_SIZE "1_75mm_MK3S"
 #define NOZZLE_TYPE "E3Dv6full"
 
 // Developer flag
@@ -75,6 +75,7 @@
 // Canceled home position
 #define X_CANCEL_POS 50
 #define Y_CANCEL_POS 190
+#define Z_CANCEL_LIFT 50
 
 //Pause print position
 #define X_PAUSE_POS 50
@@ -170,6 +171,8 @@
 #define DEBUG_DCODE3
 #define DEBUG_DCODE6
 
+//#define DEBUG_PULLUP_CRASH //Test Pullup crash
+
 //#define DEBUG_BUILD
 //#define DEBUG_SEC_LANG   //secondary language debug output at startup
 //#define DEBUG_XFLASH   //debug external spi flash
@@ -226,6 +229,7 @@
 #define TMC2130_INTPOL_XY   1         // extrapolate 256 for XY axes
 #define TMC2130_INTPOL_Z    1         // extrapolate 256 for Z axis
 #define TMC2130_INTPOL_E    1         // extrapolate 256 for E axis
+// #define ALLOW_ALL_MRES
 
 #define TMC2130_PWM_GRAD_X  2         // PWMCONF
 #define TMC2130_PWM_AMPL_X  230       // PWMCONF
@@ -358,6 +362,8 @@
 #define EXTRUDER_ALTFAN_DETECT
 #define EXTRUDER_ALTFAN_SPEED_SILENT 128
 
+#define FANCHECK_AUTO_PRINT_FAN_THRS 70 //[RPS] - Used during selftest to identify swapped fans automatically
+#define FANCHECK_AUTO_FAIL_THRS 20 //[RPS] - Used during selftest to identify a faulty fan
 
 
 /*------------------------------------
@@ -403,13 +409,6 @@
 /*------------------------------------
  ADDITIONAL FEATURES SETTINGS
  *------------------------------------*/
-
-// Define Prusa filament runout sensor
-//#define FILAMENT_RUNOUT_SUPPORT
-
-#ifdef FILAMENT_RUNOUT_SUPPORT
-#define FILAMENT_RUNOUT_SENSOR 1
-#endif
 
 // temperature runaway
 #define TEMP_RUNAWAY_BED_HYSTERESIS 5
@@ -666,6 +665,8 @@
 
 //#define SUPPORT_VERBOSITY
 
+#define MMU_FILAMENT_COUNT 5
+
 #define MMU_REQUIRED_FW_BUILDNR 83
 #define MMU_HWRESET
 #define MMU_DEBUG //print communication between MMU2 and printer on serial
@@ -679,5 +680,17 @@
 
 //#define MMU_ALWAYS_CUT
 #define MMU_IDLER_SENSOR_ATTEMPTS_NR 21 //max. number of attempts to load filament if first load failed; value for max bowden length and case when loading fails right at the beginning
+
+// Default Arc Interpolation Settings (Now configurable via M214)
+#define DEFAULT_N_ARC_CORRECTION       25 // Number of interpolated segments between corrections.
+/* A value of 1 or less for N_ARC_CORRECTION will trigger the use of Sin and Cos for every arc, which will improve accuracy at the
+   cost of performance*/
+#define DEFAULT_MM_PER_ARC_SEGMENT     1.0f // REQUIRED - The enforced maximum length of an arc segment
+#define DEFAULT_MIN_MM_PER_ARC_SEGMENT 0.5f //the enforced minimum length of an interpolated segment
+   /*  MIN_MM_PER_ARC_SEGMENT Must be smaller than MM_PER_ARC_SEGMENT.  Only has an effect if MIN_ARC_SEGMENTS > 0
+       or ARC_SEGMENTS_PER_SEC > 0 .  If both MIN_ARC_SEGMENTS and ARC_SEGMENTS_PER_SEC is defined, the minimum
+       calculated segment length is used. */
+#define DEFAULT_MIN_ARC_SEGMENTS 20 // The enforced minimum segments in a full circle of the same radius.  Set to 0 to disable
+#define DEFAULT_ARC_SEGMENTS_PER_SEC 0 // Use feedrate to choose segment length. Set to 0 to disable
 
 #endif //__CONFIGURATION_PRUSA_H

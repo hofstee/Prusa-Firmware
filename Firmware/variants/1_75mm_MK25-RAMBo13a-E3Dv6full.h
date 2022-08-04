@@ -71,6 +71,7 @@
 // Canceled home position
 #define X_CANCEL_POS 50
 #define Y_CANCEL_POS 190
+#define Z_CANCEL_LIFT 50
 
 //Pause print position
 #define X_PAUSE_POS 50
@@ -220,6 +221,9 @@
 #define EXTRUDER_AUTO_FAN_TEMPERATURE 50
 #define EXTRUDER_AUTO_FAN_SPEED   255  // == full speed
 
+#define FANCHECK_AUTO_PRINT_FAN_THRS 70 //[RPS] - Used during selftest to identify swapped fans automatically
+#define FANCHECK_AUTO_FAIL_THRS 20 //[RPS] - Used during selftest to identify a faulty fan
+
 
 /*------------------------------------
  LOAD/UNLOAD FILAMENT SETTINGS
@@ -264,13 +268,6 @@
 /*------------------------------------
  ADDITIONAL FEATURES SETTINGS
  *------------------------------------*/
-
-// Define Prusa filament runout sensor
-//#define FILAMENT_RUNOUT_SUPPORT
-
-#ifdef FILAMENT_RUNOUT_SUPPORT
-#define FILAMENT_RUNOUT_SENSOR 1
-#endif
 
 // temperature runaway
 #define TEMP_RUNAWAY_BED_HYSTERESIS 5
@@ -517,6 +514,8 @@
 
 //#define SUPPORT_VERBOSITY
 
+#define MMU_FILAMENT_COUNT 5
+
 #define MMU_REQUIRED_FW_BUILDNR 132
 #define MMU_FORCE_STEALTH_MODE
 #define MMU_DEBUG //print communication between MMU2 and printer on serial
@@ -526,5 +525,17 @@
 
 //#define HEATBED_ANALYSIS //for meash bed leveling and heatbed analysis D-codes D80 and D81
 //#define MICROMETER_LOGGING //related to D-codes D80 and D81, currently works on MK2.5 only (MK3 board pin definitions missing)
+
+// Default Arc Interpolation Settings (Now configurable via M214)
+#define DEFAULT_N_ARC_CORRECTION       25 // Number of interpolated segments between corrections.
+/* A value of 1 or less for N_ARC_CORRECTION will trigger the use of Sin and Cos for every arc, which will improve accuracy at the
+   cost of performance*/
+#define DEFAULT_MM_PER_ARC_SEGMENT     1.0f // REQUIRED - The enforced maximum length of an arc segment
+#define DEFAULT_MIN_MM_PER_ARC_SEGMENT 0.5f //the enforced minimum length of an interpolated segment
+   /*  MIN_MM_PER_ARC_SEGMENT Must be smaller than MM_PER_ARC_SEGMENT.  Only has an effect if MIN_ARC_SEGMENTS > 0
+       or ARC_SEGMENTS_PER_SEC > 0 .  If both MIN_ARC_SEGMENTS and ARC_SEGMENTS_PER_SEC is defined, the minimum
+       calculated segment length is used. */
+#define DEFAULT_MIN_ARC_SEGMENTS 20 // The enforced minimum segments in a full circle of the same radius.  Set to 0 to disable
+#define DEFAULT_ARC_SEGMENTS_PER_SEC 0 // Use feedrate to choose segment length. Set to 0 to disable
 
 #endif //__CONFIGURATION_PRUSA_H

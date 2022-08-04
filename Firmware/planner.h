@@ -192,7 +192,6 @@ extern unsigned long* max_acceleration_units_per_sq_second;
 extern unsigned long axis_steps_per_sqr_second[NUM_AXIS];
 
 extern long position[NUM_AXIS];
-extern uint8_t maxlimit_status;
 
 
 #ifdef AUTOTEMP
@@ -263,7 +262,8 @@ extern void planner_abort_hard();
 extern bool waiting_inside_plan_buffer_line_print_aborted;
 
 #ifdef PREVENT_DANGEROUS_EXTRUDE
-void set_extrude_min_temp(float temp);
+extern int extrude_min_temp;
+void set_extrude_min_temp(int temp);
 #endif
 
 void reset_acceleration_rates();
